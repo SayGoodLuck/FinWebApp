@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'FinWebApp'
 ]
 
 MIDDLEWARE = [
@@ -79,7 +80,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'fin_db',
         'USER': 'postgres',
-        'PASSWORD': '1234',
+        'PASSWORD': '123456Di!',
         'HOST': 'localhost',
         'PORT': '5432',
     }
