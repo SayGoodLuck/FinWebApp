@@ -12,6 +12,8 @@ from django.shortcuts import render
 
 @api_view(['POST'])
 def register(request):
+    if request.content_type != 'application/json':
+        return JsonResponse({'error': 'Unsupported Content-Type'}, status=400)
     data = request.data
     form = UserCreationForm(data)
     if form.is_valid():
@@ -23,6 +25,8 @@ def register(request):
 
 @api_view(['POST'])
 def login(request):
+    if request.content_type != 'application/json':
+        return JsonResponse({'error': 'Unsupported Content-Type'}, status=400)
     data = request.data
     username = data.get('username')
     password = data.get('password')
