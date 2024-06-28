@@ -1,1 +1,1 @@
-python3 manage.py runserver
+Чтобы запустить сервер: python3 manage.py runserver
