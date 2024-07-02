@@ -27,5 +27,3 @@ class Transactions(models.Model):
     merchant_name = models.CharField(max_length=120, default="merchant")
     category = models.TextField()
     date = models.DateField()
-
-

@@ -140,7 +140,6 @@ def update_cursor(user_id, new_cursor):
 
 
 def serialize_transaction(transaction):
-
     return {
 
         'bank': transaction['account_id'],
@@ -155,7 +154,6 @@ def serialize_transaction(transaction):
 @login_required()
 def get_balances(request):
     if request.method == 'POST':
-
 
         plaid_token = PlaidToken.objects.filter(user_id=request.user.id).first()
         access_token = plaid_token.access_token
@@ -180,7 +178,6 @@ def get_balances(request):
 
 
 def serialize_accounts(acc):
-
     return {
         "bank": acc['account_id'],
         "card_name": acc['name'],

@@ -1,5 +1,3 @@
-import json
-from rest_framework.decorators import api_view
 from django.contrib.auth import authenticate
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
@@ -8,6 +6,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import render
+from rest_framework.decorators import api_view
 
 
 @api_view(['POST'])
