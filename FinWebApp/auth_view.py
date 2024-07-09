@@ -3,6 +3,7 @@ from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
+from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -10,6 +11,7 @@ from rest_framework.decorators import api_view
 
 
 @api_view(['POST'])
+@csrf_exempt
 def register(request):
     if request.content_type != 'application/json':
         return JsonResponse({'error': 'Unsupported Content-Type'}, status=400)
@@ -23,6 +25,7 @@ def register(request):
 
 
 @api_view(['POST'])
+@csrf_exempt
 def login(request):
     if request.content_type != 'application/json':
         return JsonResponse({'error': 'Unsupported Content-Type'}, status=400)

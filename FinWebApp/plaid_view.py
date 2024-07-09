@@ -24,6 +24,18 @@ configuration = plaid.Configuration(
 api_client = plaid.ApiClient(configuration)
 client = plaid_api.PlaidApi(api_client)
 
+BANK_NAME_MAPPING = {
+    'rko9QeoxnLsG4VpgVWj7Iq1wMoPKQ9S759WpM': 'Santander',
+    'qPo9e7o3ymSW8vLmvlJNSqolMxV9EGSgDPvLk': 'PKO Bank Polski',
+    'KvWZBMWoDeIpeV8KV9z1uW7rzBag6esRBk7KA': 'BNP Paribas',
+    'BEW98aWjbqSLJDkgDXM4cwv9jeX7bxc4K5RXx': 'ING',
+    'zp198g1eX4hMvQ16QGVXhorVmbP49dClvBZMQ': 'ING',
+    '34xda6xRAWsNP3lV3pX8ide6avlXJBCZ1bvQg': 'ING',
+    'x1m5opmjndcXlZ9DZkJmiQPy5R79nxF6GPXkP': 'ING',
+    'avG9AwGZbEIKZVBGVbW5Ub4P36AedycZWJbom': 'PKO Bank Polski',
+    'dv98Kq9L6lIkdVmBVLnvIaZqkbl8GxcJWzdlE': 'PKO Bank Polski',
+    'lxod4aoknXhGQ8L18Zd9IrAkdnwW4DupXgzne': 'PKO Bank Polski',
+}
 
 @login_required()
 def exchange_public_token(request):
@@ -87,9 +99,10 @@ def get_transactions(request):
 
             # Save transactions to the database
             for txn in added:
+                bank_name = BANK_NAME_MAPPING.get(txn['account_id'], txn['account_id'])
                 Transactions.objects.create(
                     user_id=request.user,
-                    bank=txn['account_id'],
+                    bank=bank_name,
                     amount=txn['amount'],
                     merchant_name=txn['name'],
                     category=txn['category'],
@@ -164,9 +177,10 @@ def get_balances(request):
 
         accs_serialized = [serialize_accounts(txn) for txn in accounts]
         for data in accounts:
+            bank_name = BANK_NAME_MAPPING.get(data['account_id'], data['account_id'])
             Cards.objects.create(
                 user_id=request.user,
-                bank=data['account_id'],
+                bank=bank_name,
                 card_type=data['type'],
                 card_name=data['name'],
                 card_number=data['mask'],

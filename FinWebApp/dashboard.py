@@ -16,7 +16,7 @@ def get_dashboard(request):
         )
         transactions_list = list(transactions)
         cards = Cards.objects.filter(user_id=user).values(
-            'user_id', 'card_name', 'card_number', 'card_type', 'balance', 'currency'
+            'user_id', 'bank', 'card_name', 'card_number', 'card_type', 'balance', 'currency'
         )
         cards_list = list(cards)
         data = {
