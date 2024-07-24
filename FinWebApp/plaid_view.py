@@ -1,19 +1,27 @@
 import json
+import logging
+import random
 
 import plaid
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.http import JsonResponse
+from django.shortcuts import render
+from plaid import configuration
 from plaid.api import plaid_api
 from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
+from plaid.model.country_code import CountryCode
 from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
+from plaid.model.link_token_create_request import LinkTokenCreateRequest
+from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+from plaid.model.products import Products
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
-from .models import Cards
-from .models import PlaidToken
-from .models import Transactions
+from .models import Card, PlaidToken, Transaction
 
-configuration = plaid.Configuration(
+logger = logging.getLogger(__name__)
+
+config = configuration.Configuration(
     host=plaid.Environment.Sandbox,
     api_key={
         'clientId': '6661f534de9928001b9a0c30',
@@ -21,21 +29,35 @@ configuration = plaid.Configuration(
     }
 )
 
-api_client = plaid.ApiClient(configuration)
+api_client = plaid.ApiClient(config)
 client = plaid_api.PlaidApi(api_client)
 
-BANK_NAME_MAPPING = {
-    'rko9QeoxnLsG4VpgVWj7Iq1wMoPKQ9S759WpM': 'Santander',
-    'qPo9e7o3ymSW8vLmvlJNSqolMxV9EGSgDPvLk': 'PKO Bank Polski',
-    'KvWZBMWoDeIpeV8KV9z1uW7rzBag6esRBk7KA': 'BNP Paribas',
-    'BEW98aWjbqSLJDkgDXM4cwv9jeX7bxc4K5RXx': 'ING',
-    'zp198g1eX4hMvQ16QGVXhorVmbP49dClvBZMQ': 'ING',
-    '34xda6xRAWsNP3lV3pX8ide6avlXJBCZ1bvQg': 'ING',
-    'x1m5opmjndcXlZ9DZkJmiQPy5R79nxF6GPXkP': 'ING',
-    'avG9AwGZbEIKZVBGVbW5Ub4P36AedycZWJbom': 'PKO Bank Polski',
-    'dv98Kq9L6lIkdVmBVLnvIaZqkbl8GxcJWzdlE': 'PKO Bank Polski',
-    'lxod4aoknXhGQ8L18Zd9IrAkdnwW4DupXgzne': 'PKO Bank Polski',
-}
+BANK_NAME = ['PKO Bank Polski', 'ING', 'BNP Paribas', 'Santander', 'Millenium', 'BelBa', 'Prior', 'Prez',
+             'RusTehNo', 'moneyBank']
+BANKS_DICT = {}
+
+
+@login_required()
+def initialize_plaid_link(request):
+    try:
+        link_token_response = LinkTokenCreateRequest(
+            products=[Products('auth'), Products('transactions')],
+            client_name="wallet",
+            country_codes=[CountryCode('PL')],
+            language='en',
+            user=LinkTokenCreateRequestUser(
+                client_user_id=request.user.username
+            )
+
+        )
+
+        response = client.link_token_create(link_token_response)
+
+        return JsonResponse({'link_token': response['link_token']})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
 
 @login_required()
 def exchange_public_token(request):
@@ -50,7 +72,7 @@ def exchange_public_token(request):
             access_token = response['access_token']
             user_instance = User.objects.get(pk=request.user.id)
             if PlaidToken.objects.filter(user_id=user_instance):
-                return JsonResponse({"error": "this user have a public token"})
+                return JsonResponse({"error": "this user have a access token"})
             else:
 
                 PlaidToken.objects.create(
@@ -62,9 +84,13 @@ def exchange_public_token(request):
             return JsonResponse({'error': str(e)}, status=400)
 
 
+def index(request):
+    return render(request, 'index.html')
+
+
 @login_required()
 def get_transactions(request):
-    if request.method == 'POST':
+    if request.method == 'GET':
         try:
             user_access_token = PlaidToken.objects.filter(user_id=request.user.id).first()
             access_token = user_access_token.access_token
@@ -72,11 +98,11 @@ def get_transactions(request):
             has_more = True
 
             # cursor for fetching any future updates after the latest update
-            cursor = get_latest_cursor(request.user.id)
+            cursor = get_latest_cursor(request.user)
 
             # Iterate through each page of new transaction updates for item
             while has_more:
-                if cursor:
+                if cursor is None:
                     sync_request = TransactionsSyncRequest(
                         access_token=access_token
 
@@ -84,6 +110,7 @@ def get_transactions(request):
                 else:
                     sync_request = TransactionsSyncRequest(
                         access_token=access_token,
+                        cursor=cursor
 
                     )
                 response = client.transactions_sync(sync_request)
@@ -99,10 +126,9 @@ def get_transactions(request):
 
             # Save transactions to the database
             for txn in added:
-                bank_name = BANK_NAME_MAPPING.get(txn['account_id'], txn['account_id'])
-                Transactions.objects.create(
+                Transaction.objects.create(
                     user_id=request.user,
-                    bank=bank_name,
+                    bank=upd_bank(txn['account_id'], random.choice(BANK_NAME)),
                     amount=txn['amount'],
                     merchant_name=txn['name'],
                     category=txn['category'],
@@ -135,6 +161,7 @@ def get_transactions(request):
             return JsonResponse({'error': str(e)}, status=500)
 
 
+# Cursor for control transactions update
 def get_latest_cursor(user_id):
     try:
         plaid_cursor = PlaidToken.objects.filter(user_id=user_id).first()
@@ -143,6 +170,7 @@ def get_latest_cursor(user_id):
         return None
 
 
+# Cursor for control transactions update
 def update_cursor(user_id, new_cursor):
     try:
         plaid_cursor = PlaidToken.objects.filter(user_id=user_id).first()
@@ -152,6 +180,7 @@ def update_cursor(user_id, new_cursor):
         pass
 
 
+# Json serialize func for POSTMAN response
 def serialize_transaction(transaction):
     return {
 
@@ -165,32 +194,60 @@ def serialize_transaction(transaction):
 
 
 @login_required()
-def get_balances(request):
-    if request.method == 'POST':
+def get_balance(request):
+    if request.method == 'GET':
+        try:
+            plaid_token = PlaidToken.objects.filter(user_id=request.user.id).first()
+            access_token = plaid_token.access_token
 
-        plaid_token = PlaidToken.objects.filter(user_id=request.user.id).first()
-        access_token = plaid_token.access_token
-        balance_request = AccountsBalanceGetRequest(access_token=access_token)
-        response = client.accounts_balance_get(balance_request)
+            has_more = True
 
-        accounts = response["accounts"]
+            # cursor for fetching any future updates after the latest update
+            cursor = get_latest_cursor(request.user)
 
-        accs_serialized = [serialize_accounts(txn) for txn in accounts]
-        for data in accounts:
-            bank_name = BANK_NAME_MAPPING.get(data['account_id'], data['account_id'])
-            Cards.objects.create(
-                user_id=request.user,
-                bank=bank_name,
-                card_type=data['type'],
-                card_name=data['name'],
-                card_number=data['mask'],
-                balance=data['balances']['current'],
-                currency=data['balances']['iso_currency_code']
-            )
+            while has_more:
+                if cursor is None:
+                    balance_request = AccountsBalanceGetRequest(access_token=access_token)
+                    response = client.accounts_balance_get(balance_request)
+                else:
+                    balance_request = AccountsBalanceGetRequest(
+                        access_token=access_token,
+                        cursor=cursor
+                    )
+                    response = client.accounts_balance_get(balance_request)
 
-        return JsonResponse(accs_serialized, safe=False)
+                accounts = response["accounts"]
+
+                accs_serialized = [serialize_accounts(txn) for txn in accounts]
+                for data in accounts:
+                    Card.objects.create(
+                        user_id=request.user,
+                        bank=upd_bank(data['account_id'], random.choice(BANK_NAME)),
+                        card_type=data['type'],
+                        card_name=data['name'],
+                        card_number=data['mask'],
+                        balance=data['balances']['current'],
+                        currency=data['balances']['iso_currency_code']
+                    )
+                update_cursor(request.user, cursor)
+                return JsonResponse(accs_serialized, safe=False)
+
+        except PlaidToken.DoesNotExist:
+            return JsonResponse({'error': 'PlaidToken not found for this user'}, status=400)
+
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
 
 
+def upd_bank(old, new):
+    if old in BANKS_DICT:
+        return BANKS_DICT[old]
+    else:
+        BANKS_DICT[old] = new
+        return new
+
+
+# Json serialize func for POSTMAN response
 def serialize_accounts(acc):
     return {
         "bank": acc['account_id'],
@@ -199,3 +256,28 @@ def serialize_accounts(acc):
         "balance": acc['balances']['current'],
         "currency": acc['balances']["iso_currency_code"]
     }
+
+#Main user page
+def get_dashboard(request):
+    if request.method == 'GET':
+        get_transactions(request)
+        get_balance(request)
+        user = request.user
+        plaid_token = PlaidToken.objects.filter(user_id=user).first()
+        if plaid_token:
+            transactions = Transaction.objects.filter(user_id=user).values(
+                'bank', 'amount', 'merchant_name', 'category', 'date'
+            )
+            transactions_list = list(transactions)
+            cards = Card.objects.filter(user_id=user).values(
+                'bank', 'card_name', 'card_number', 'card_type', 'balance', 'currency'
+            )
+            cards_list = list(cards)
+            data = {
+                'transactions': transactions_list,
+                'cards': cards_list
+            }
+
+            return JsonResponse(data, safe=False)
+        else:
+            return JsonResponse({'error': 'Connect to your bank'}, status=404)
