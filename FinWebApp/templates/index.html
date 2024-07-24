@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Plaid Connect</title>
+    <script src="https://cdn.plaid.com/link/v2/latest/link-initialize.js"></script>
+</head>
+<body>
+    <h1>Connect your bank account</h1>
+    <button id="link-button">Connect a bank account</button>
+
+    <script>
+        var linkHandler = Plaid.create({
+            token: data.link_token,
+            onLoad: function() {
+                // Optional, called when Link loads
+            },
+            onSuccess: function(public_token, metadata) {
+                // Send the public_token to your app server.
+                // The metadata object contains info about the institution the
+                // user selected and the account ID or IDs, if the
+                // Select Account view is enabled.
+                fetch('/save_access_token/', {
+                    method: 'POST',
+                    body: JSON.stringify({public_token: public_token}),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
+            },
+            onExit: function(err, metadata) {
+                // The user exited the Link flow.
+                if (err != null) {
+                    // The user encountered a Plaid API error prior to exiting.
+                }
+                // metadata contains information about the institution
+                // that the user selected and the most recent API request IDs.
+                // Storing this information can be helpful for support.
+            },
+        });
+
+        document.getElementById('link-button').onclick = function() {
+            fetch('/create_link_token/')
+                .then(response => response.json())
+                .then(data => {
+                    linkHandler.open({
+                        token: data.link_token
+                    });
+                });
+        };
+
+        // Function to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>

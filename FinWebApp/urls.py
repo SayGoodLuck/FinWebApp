@@ -16,10 +16,16 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from . import view
+from . import auth_view
+from .plaid_view import exchange_public_token, get_transactions, get_balances
+from .dashboard import get_dashboard
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('register/', view.register, name='register'),
-    path('login/', view.login, name='login'),
+    path('register/', auth_view.register, name='register'),
+    path('login/', auth_view.login, name='login'),
+    path('exchange_public_token/', exchange_public_token, name='exchange_public_token'),
+    path('transactions/sync/', get_transactions, name='get_transactions'),
+    path('accounts/balance/get', get_balances, name='get_balances'),
+    path('dashboard/', get_dashboard, name='get_dashboard'),
 ]
